@@ -47,24 +47,32 @@ public class EditorWorldManager {
 
     protected tileType tileTypeSelection = tileType.LAND; // Starts with land
 
+    public EditorWorldManager() {
+    }
+
     public EditorWorldManager(String n, int w, int d) { // new world
-        init(n, w, d, new Array<tileType>(), new Array<Integer>());
         islandPrefs = Gdx.app.getPreferences("islandWorlds");
+        init(n, w, d, new Array<tileType>(), new Array<Integer>(), null);
     }
 
     public EditorWorldManager(String fileName) { // retrieved world, essentially loadIsland function
         islandPrefs = Gdx.app.getPreferences("islandWorlds");
+        LoadedFileInfo loadedFileInfo = loadIsland(fileName);
+        init(fileName, loadedFileInfo.width, loadedFileInfo.depth, loadedFileInfo.tArray, loadedFileInfo.eArray, null);
+    }
+
+    public LoadedFileInfo loadIsland(String fileName) {
         int width = islandPrefs.getInteger(fileName + "Width");
         int depth = islandPrefs.getInteger(fileName + "Depth");
         int size = width * depth;
+
         Array<tileType> tArray = new Array<tileType>();
         Array<Integer> eArray = new Array<Integer>();
         for (int i = 0; i < size; i++) {
             tArray.add(tileType.valueOf(islandPrefs.getString(fileName+ "T" + Integer.toString(i))));
             eArray.add(islandPrefs.getInteger(fileName + "E" + Integer.toString(i)));
         }
-        init(fileName, width, depth, tArray, eArray);
-
+        return new LoadedFileInfo(width, depth, tArray, eArray, new Array<tileType>());
     }
 
     public void saveIsland() {
@@ -78,7 +86,7 @@ public class EditorWorldManager {
         islandPrefs.flush();
     }
 
-    private void init(String n, int w, int d, Array<tileType> typeArray, Array<Integer> elevArray)  {
+    protected void init(String n, int w, int d, Array<tileType> typeArray, Array<Integer> elevArray, Array<tileType> occTypeArray)  {
         worldName = n;
         worldTileWidth = w;
         worldTileDepth = d;
@@ -115,7 +123,7 @@ public class EditorWorldManager {
 
         // Tile Array Initiation (World generation)
 
-        generateAllTileProperties(typeArray, elevArray);
+        generateAllTileProperties(typeArray, elevArray, occTypeArray);
 
         // Border Array Initiation
 
@@ -255,96 +263,95 @@ public class EditorWorldManager {
         tileTypeSelection = t;
     }
 
+
     // _______________ WORLD UPDATING FUNCTIONS
 
-    // TODO: this will need tile occupation types array soon
-    public void generateAllTileProperties(Array<tileType> tileTypes, Array<Integer> elevations) { // produces entirely new tile Array based on saved information
+    protected TileProperties generateHelperPropertiesOnly(int width, int depth, Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes) {
+        // current index properties
+        int currentIndex = depth * worldTileWidth + width; // equiv to currentIndex++ iteration
+        tileType thisTileType = tileTypes.get(currentIndex);
+        int thisElevation = elevations.get(currentIndex);
+
+        // adjacent neighbour properties (sets to null if next to edge tile)
+        int nIndex = currentIndex - worldTileWidth;
+        int sIndex = currentIndex + worldTileWidth;
+        int eIndex = currentIndex + 1;
+        int wIndex = currentIndex - 1;
+        tileType thisNT, thisST, thisET, thisWT;
+        Vector4 thisNeighbourElevation = new Vector4(0, 0, 0, 0);
+        if (depth == 0) {
+            thisNT = null;
+            thisST = tileTypes.get(sIndex);
+            thisNeighbourElevation.y = elevations.get(sIndex);
+        } else if (depth >= worldTileDepth - 1) {
+            thisST = null;
+            thisNT = tileTypes.get(nIndex);
+            thisNeighbourElevation.x = elevations.get(nIndex);
+        } else {
+            thisNT = tileTypes.get(nIndex);
+            thisST = tileTypes.get(sIndex);
+            thisNeighbourElevation.x = elevations.get(nIndex);
+            thisNeighbourElevation.y = elevations.get(sIndex);
+        }
+        if (width == 0) {
+            thisWT = null;
+            thisET = tileTypes.get(eIndex);
+            thisNeighbourElevation.z = elevations.get(eIndex);
+        } else if (width == worldTileWidth - 1) {
+            thisET = null;
+            thisWT = tileTypes.get(wIndex);
+            thisNeighbourElevation.w = elevations.get(wIndex);
+        } else {
+            thisET = tileTypes.get(eIndex);
+            thisWT = tileTypes.get(wIndex);
+            thisNeighbourElevation.z = elevations.get(eIndex);
+            thisNeighbourElevation.w = elevations.get(wIndex);
+        }
+
+        // corner neighbour properties (sets to null if next to edge tile)
+        Vector4 thisCornerNeighbourOcean = new Vector4(0, 0, 0, 0); // 0 = false, 1 = true
+        Vector4 thisNeighbourCornerElevation = new Vector4(0, 0, 0, 0);
+        if (thisNT != null && thisET != null) {
+            if (tileTypes.get(nIndex + 1) == OCEAN) { thisCornerNeighbourOcean.x = 1;}
+            thisNeighbourCornerElevation.x = elevations.get(nIndex + 1);
+        } else {
+            thisCornerNeighbourOcean.x = 1; // N-W is null, therefore should be considered OCEAN
+        }
+        if (thisNT != null && thisWT != null) {
+            if (tileTypes.get(nIndex - 1) == OCEAN) { thisCornerNeighbourOcean.y = 1;}
+            thisNeighbourCornerElevation.y = elevations.get(nIndex - 1);
+        }  else {
+            thisCornerNeighbourOcean.y = 1;
+        }
+        if (thisST != null && thisET != null) {
+            if (tileTypes.get(sIndex + 1) == OCEAN) { thisCornerNeighbourOcean.z = 1;}
+            thisNeighbourCornerElevation.z = elevations.get(sIndex + 1);
+        } else {
+            thisCornerNeighbourOcean.z = 1;
+        }
+        if (thisST != null && thisWT != null) {
+            if (tileTypes.get(sIndex - 1) == OCEAN) { thisCornerNeighbourOcean.w = 1;}
+            thisNeighbourCornerElevation.w = elevations.get(sIndex - 1);
+        }  else {
+            thisCornerNeighbourOcean.w = 1;
+        }
+
+        return new TileProperties(thisTileType, tileType.UNOCCUPIED, thisElevation, thisNT, thisST, thisET, thisWT, thisCornerNeighbourOcean, thisNeighbourElevation, thisNeighbourCornerElevation);
+    }
+
+    // produces entirely new tile Array based on saved information
+    // occupation types handled in GameWorldManager only - needed param here for inheritance
+    public void generateAllTileProperties(Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes) {
 
         tileArray = new Array<TileInstance>();
 
         // Start by setting all properties
         for (int depth = 0; depth < worldTileDepth; depth++) {  // FOR REFERENCE (0 = north west, worldTileWidth = north east)
             for (int width = 0; width < worldTileWidth; width++) {
+                TileProperties currentProperties = generateHelperPropertiesOnly(width, depth, tileTypes, elevations, tileOccupationTypes);
 
-                // current index properties
-                int currentIndex = depth * worldTileWidth + width; // equiv to currentIndex++ iteration
-                tileType thisTileType = tileTypes.get(currentIndex);
-                int thisElevation = elevations.get(currentIndex);
-
-                // adjacent neighbour properties (sets to null if next to edge tile)
-                int nIndex = currentIndex - worldTileWidth;
-                int sIndex = currentIndex + worldTileWidth;
-                int eIndex = currentIndex + 1;
-                int wIndex = currentIndex - 1;
-                tileType thisNT, thisST, thisET, thisWT;
-                Vector4 thisNeighbourElevation = new Vector4(0, 0, 0, 0);
-                if (depth == 0) {
-                    thisNT = null;
-                    thisST = tileTypes.get(sIndex);
-                    thisNeighbourElevation.y = elevations.get(sIndex);
-                } else if (depth >= worldTileDepth - 1) {
-                    thisST = null;
-                    thisNT = tileTypes.get(nIndex);
-                    thisNeighbourElevation.x = elevations.get(nIndex);
-                } else {
-                    thisNT = tileTypes.get(nIndex);
-                    thisST = tileTypes.get(sIndex);
-                    thisNeighbourElevation.x = elevations.get(nIndex);
-                    thisNeighbourElevation.y = elevations.get(sIndex);
-                }
-                if (width == 0) {
-                    thisWT = null;
-                    thisET = tileTypes.get(eIndex);
-                    thisNeighbourElevation.z = elevations.get(eIndex);
-                } else if (width == worldTileWidth - 1) {
-                    thisET = null;
-                    thisWT = tileTypes.get(wIndex);
-                    thisNeighbourElevation.w = elevations.get(wIndex);
-                } else {
-                    thisET = tileTypes.get(eIndex);
-                    thisWT = tileTypes.get(wIndex);
-                    thisNeighbourElevation.z = elevations.get(eIndex);
-                    thisNeighbourElevation.w = elevations.get(wIndex);
-                }
-
-                // corner neighbour properties (sets to null if next to edge tile)
-                Vector4 thisCornerNeighbourOcean = new Vector4(0, 0, 0, 0); // 0 = false, 1 = true
-                Vector4 thisNeighbourCornerElevation = new Vector4(0, 0, 0, 0);
-                if (thisNT != null && thisET != null) {
-                    if (tileTypes.get(nIndex + 1) == OCEAN) { thisCornerNeighbourOcean.x = 1;}
-                    thisNeighbourCornerElevation.x = elevations.get(nIndex + 1);
-                } else {
-                    thisCornerNeighbourOcean.x = 1; // N-W is null, therefore should be considered OCEAN
-                }
-                if (thisNT != null && thisWT != null) {
-                    if (tileTypes.get(nIndex - 1) == OCEAN) { thisCornerNeighbourOcean.y = 1;}
-                    thisNeighbourCornerElevation.y = elevations.get(nIndex - 1);
-                }  else {
-                    thisCornerNeighbourOcean.y = 1;
-                }
-                if (thisST != null && thisET != null) {
-                    if (tileTypes.get(sIndex + 1) == OCEAN) { thisCornerNeighbourOcean.z = 1;}
-                    thisNeighbourCornerElevation.z = elevations.get(sIndex + 1);
-                } else {
-                    thisCornerNeighbourOcean.z = 1;
-                }
-                if (thisST != null && thisWT != null) {
-                    if (tileTypes.get(sIndex - 1) == OCEAN) { thisCornerNeighbourOcean.w = 1;}
-                    thisNeighbourCornerElevation.w = elevations.get(sIndex - 1);
-                }  else {
-                    thisCornerNeighbourOcean.w = 1;
-                }
-
-                TileProperties currentProperties = new TileProperties(thisTileType, tileType.UNOCCUPIED, thisElevation, thisNT, thisST, thisET, thisWT, thisCornerNeighbourOcean, thisNeighbourElevation, thisNeighbourCornerElevation);
-//------ // LATER ON TRY RUNNING IT THROUGH UPDATETILEHELPER
-                // Using properties, send through tileSetAlgorithm and return modelIndex & rotation
-                ModelInfo currentModelInfo = tileSetAlgorithm(currentProperties);
-                Model currentModel = tileModels.get(currentModelInfo.modelIndex);
-                TileInstance currentInstance = new TileInstance(currentModel, currentModelInfo, currentProperties);
-                currentInstance.transform.setToRotation(Vector3.Y, 90 * currentModelInfo.modelRotation);
-                tileArray.add(currentInstance);
-                setTileLocation(currentInstance, width, depth, currentProperties.elevation);
-                currentInstance.transform.rotate(Vector3.Y, 90 * currentModelInfo.modelRotation);
+                tileArray.add(null); // to be compatible with setTile
+                setTile(tileArray.size - 1, currentProperties);
             }
         }
 
@@ -362,31 +369,31 @@ public class EditorWorldManager {
             updateOceanCorners(selectedIndex, 0);
         }
         selectedProperties.tileType = t;
-        updateTileHelper(selectedIndex, selectedProperties);
+        setTile(selectedIndex, selectedProperties);
         // MUST ALSO UPDATE NEIGHBOUR TILES, done
         if (selectedProperties.nTileType != null) {
             int northIndex = selectedIndex - worldTileWidth;
             TileProperties northProperties = tileArray.get(northIndex).tileProperties;
             northProperties.sTileType = t; // in relation to the north tile, the south tile is changing
-            updateTileHelper(northIndex, northProperties);
+            setTile(northIndex, northProperties);
         }
         if (selectedProperties.sTileType != null) {
             int southIndex = selectedIndex + worldTileWidth;
             TileProperties southProperties = tileArray.get(southIndex).tileProperties;
             southProperties.nTileType = t;
-            updateTileHelper(southIndex, southProperties);
+            setTile(southIndex, southProperties);
         }
         if (selectedProperties.eTileType != null) {
             int eastIndex = selectedIndex + 1;
             TileProperties eastProperties = tileArray.get(eastIndex).tileProperties;
             eastProperties.wTileType = t;
-            updateTileHelper(eastIndex, eastProperties);
+            setTile(eastIndex, eastProperties);
         }
         if (selectedProperties.wTileType != null) {
             int westIndex = selectedIndex - 1;
             TileProperties westProperties = tileArray.get(westIndex).tileProperties;
             westProperties.eTileType = t;
-            updateTileHelper(westIndex, westProperties);
+            setTile(westIndex, westProperties);
         }
         // should work idk tho
     }
@@ -397,25 +404,25 @@ public class EditorWorldManager {
             int northEastIndex = (selectedIndex - worldTileWidth) + 1;
             TileProperties northEastProperties = tileArray.get(northEastIndex).tileProperties;
             northEastProperties.isCornerNeighbourOcean.w = isOceanNow;  // in relation to the north-east tile, the south-west tile is changing
-            updateTileHelper(northEastIndex, northEastProperties);
+            setTile(northEastIndex, northEastProperties);
         }
         if (selectedProperties.nTileType != null && selectedProperties.wTileType != null) {
             int northWestIndex = (selectedIndex - worldTileWidth) - 1;
             TileProperties northWestProperties = tileArray.get(northWestIndex).tileProperties;
             northWestProperties.isCornerNeighbourOcean.z = isOceanNow;
-            updateTileHelper(northWestIndex, northWestProperties);
+            setTile(northWestIndex, northWestProperties);
         }
         if (selectedProperties.sTileType != null && selectedProperties.eTileType != null) {
             int southEastIndex = (selectedIndex + worldTileWidth) + 1;
             TileProperties southEastProperties = tileArray.get(southEastIndex).tileProperties;
             southEastProperties.isCornerNeighbourOcean.y = isOceanNow;
-            updateTileHelper(southEastIndex, southEastProperties);
+            setTile(southEastIndex, southEastProperties);
         }
         if (selectedProperties.sTileType != null && selectedProperties.wTileType != null) {
             int southWestIndex = (selectedIndex + worldTileWidth) - 1;
             TileProperties southWestProperties = tileArray.get(southWestIndex).tileProperties;
             southWestProperties.isCornerNeighbourOcean.x = isOceanNow;
-            updateTileHelper(southWestIndex, southWestProperties);
+            setTile(southWestIndex, southWestProperties);
         }
     }
 
@@ -438,54 +445,54 @@ public class EditorWorldManager {
         if (selectedProperties.nTileType != null && selectedProperties.sTileType != null && selectedProperties.eTileType != null && selectedProperties.wTileType != null) {
             // add throw exception in else case aswell when error dialogues are added
             selectedProperties.elevation += elevationIncrement;
-            updateTileHelper(selectedIndex, selectedProperties);
+            setTile(selectedIndex, selectedProperties);
 
             // Direct Neighbours update
             int northIndex = selectedIndex - worldTileWidth;
             TileProperties northProperties = tileArray.get(northIndex).tileProperties;
             northProperties.neighbourElevation.y += elevationIncrement; // in relation to the north tile, the south tile is changing
-            updateTileHelper(northIndex, northProperties);
+            setTile(northIndex, northProperties);
 
             int southIndex = selectedIndex + worldTileWidth;
             TileProperties southProperties = tileArray.get(southIndex).tileProperties;
             southProperties.neighbourElevation.x += elevationIncrement;
-            updateTileHelper(southIndex, southProperties);
+            setTile(southIndex, southProperties);
 
             int eastIndex = selectedIndex + 1;
             TileProperties eastProperties = tileArray.get(eastIndex).tileProperties;
             eastProperties.neighbourElevation.w += elevationIncrement;
-            updateTileHelper(eastIndex, eastProperties);
+            setTile(eastIndex, eastProperties);
 
             int westIndex = selectedIndex - 1;
             TileProperties westProperties = tileArray.get(westIndex).tileProperties;
             westProperties.neighbourElevation.z += elevationIncrement;
-            updateTileHelper(westIndex, westProperties);
+            setTile(westIndex, westProperties);
 
             // cornerNeighbour update
             int northEastIndex = northIndex + 1;
             TileProperties northEastProperties = tileArray.get(northEastIndex).tileProperties;
             northEastProperties.cornerNeighbourElevation.w += elevationIncrement;  // in relation to the north-east tile, the south-west tile is changing
-            updateTileHelper(northEastIndex, northEastProperties);
+            setTile(northEastIndex, northEastProperties);
 
             int northWestIndex = northIndex - 1;
             TileProperties northWestProperties = tileArray.get(northWestIndex).tileProperties;
             northWestProperties.cornerNeighbourElevation.z += elevationIncrement;
-            updateTileHelper(northWestIndex, northWestProperties);
+            setTile(northWestIndex, northWestProperties);
 
             int southEastIndex = southIndex + 1;
             TileProperties southEastProperties = tileArray.get(southEastIndex).tileProperties;
             southEastProperties.cornerNeighbourElevation.y += elevationIncrement;  // in relation to the north-east tile, the south-west tile is changing
-            updateTileHelper(southEastIndex, southEastProperties);
+            setTile(southEastIndex, southEastProperties);
 
             int southWestIndex = southIndex - 1;
             TileProperties southWestProperties = tileArray.get(southWestIndex).tileProperties;
             southWestProperties.cornerNeighbourElevation.x += elevationIncrement;
-            updateTileHelper(southWestIndex, southWestProperties);
+            setTile(southWestIndex, southWestProperties);
 
         }
     }
 
-    public void updateTileHelper(int selectedIndex, TileProperties selectedProperties) {
+    public void setTile(int selectedIndex, TileProperties selectedProperties) {
         ModelInfo currentModelInfo = tileSetAlgorithm(selectedProperties);
         //System.out.println("Index: " + selectedIndex);
         //System.out.println("Model info: " + currentModelInfo.modelIndex + ", " + currentModelInfo.modelRotation);
@@ -495,6 +502,7 @@ public class EditorWorldManager {
         setTileLocation(currentInstance, selectedIndex % worldTileWidth, (selectedIndex - (selectedIndex % worldTileWidth)) / worldTileWidth, selectedProperties.elevation);  // width = selectedIndex % worldTileWidth, depth = selectedIndex - (selectedIndex % worldTileWidth) / worldTileWidth
         currentInstance.transform.rotate(Vector3.Y, 90 * currentModelInfo.modelRotation);
     }
+
 
     // _________________ TILE SET ALGORITHM
 

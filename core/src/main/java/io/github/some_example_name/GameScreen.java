@@ -1,5 +1,7 @@
 package io.github.some_example_name;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -25,7 +27,7 @@ public class GameScreen extends EditorScreen {
     }
 
     GameScreen(final Main g ,String newCityName, String islandName) {
-        worldManager = new GameWorldManager(islandName);
+        worldManager = new GameWorldManager(islandName, newCityName);
         this.cityName = newCityName;
         init(g);
         initEditor(g);
@@ -34,7 +36,12 @@ public class GameScreen extends EditorScreen {
 
     @Override
     // TODO:  Function after save button is pressed. See EditorScreen
-    protected void save() {}
+    protected void save() {
+        System.out.println("-----");
+        System.out.println("world name: " + worldManager.worldName);
+        Preferences cityListPrefs = Gdx.app.getPreferences("CityList");
+        savePreferencesHelper(cityListPrefs);
+    }
 
     @Override
     // TODO: Sets the titles at the top. See EditorScreen

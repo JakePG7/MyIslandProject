@@ -127,7 +127,6 @@ public class MyCameraController extends InputAdapter {
             //camera.position.add(tmp);
         }
         if (keys.containsKey(upKey)) {
-            System.out.println(camera.position.y);
             if (camera.position.y < 85) {
                 camera.position.add(0, 1, 0);
             }

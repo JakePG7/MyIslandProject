@@ -39,6 +39,7 @@ public class TileProperties {
         eTileType = eT;
         wTileType = wT;
         // TODO: add tileOccupationTypes for coordinate directions
+        // (I may not need to because may just set directly
         // nTileOccupationType = nTOT
         isCornerNeighbourOcean = cornerNeighbourO;
         neighbourElevation = neighbourE;

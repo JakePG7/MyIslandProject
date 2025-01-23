@@ -153,29 +153,35 @@ public class EditorScreen extends WorldScreen {
         table.add(elevationDownButton).bottom().right().width(50).height(50);
     }
 
+    protected void savePreferencesHelper(Preferences listPrefs) {
+        // Extracting list of islands/cities
+        int listSize = listPrefs.getInteger("size", -1); // will default to -1 if not found
+        Array<String> islandList = new Array<>();
+        if (listSize != -1) {
+            for (int i = 1; i < listSize; i++) {
+                islandList.add(listPrefs.getString(Integer.toString(i)));
+            }
+        }
+        // Check list if island exists
+        if (!islandList.contains(worldManager.worldName, false)) {
+            //savingNewIslandHelper();
+            System.out.println("saving new island");
+            listPrefs.putString(Integer.toString(listSize), worldManager.worldName);
+            listPrefs.putInteger("size", listSize + 1);
+            listPrefs.flush();
+        } else {
+            System.out.println("saving existing island");
+        }
+        worldManager.saveIsland();
+
+    }
+
 
     protected void save() {
         System.out.println("-----");
         System.out.println("world name: " + worldManager.worldName);
         Preferences islandPrefs = Gdx.app.getPreferences("IslandList");
-        int listSize = islandPrefs.getInteger("size", -1); // will default to -1 if not found
-        Array<String> islandList = new Array<>();
-        if (listSize != -1) {
-            for (int i = 1; i < listSize; i++) {
-                islandList.add(islandPrefs.getString(Integer.toString(i)));
-            }
-        }
-        if (!islandList.contains(worldManager.worldName, false)) {
-            System.out.println("saving new island");
-            islandPrefs.putString(Integer.toString(listSize), worldManager.worldName);
-            islandPrefs.putInteger("size", listSize + 1);
-            islandPrefs.flush();
-            // Add actual island saving for new island here
-        } else {
-            System.out.println("saving existing island");
-            // Add actual island saving for existing island here
-        }
-        worldManager.saveIsland();
+        savePreferencesHelper(islandPrefs);
     }
 
     protected boolean terrainButtonHelper(tileType t) {

@@ -17,6 +17,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
+import java.util.Objects;
+
 public class MainScreen implements Screen {
 
     Texture mainBackground = new Texture("ui/mainBackground.jpg");
@@ -99,15 +101,17 @@ public class MainScreen implements Screen {
                         // new project
                         String chosenIsland = chooseIslandSelectionBox.getSelected();
                         game.setScreen(new GameScreen(g, islandName, chosenIsland));
+                        dispose();
                         //errorLabel.setText("Doesn't work yet, sorry!");
                     } else {
                         // opening other project
                         System.out.println(chooseIslandSelectionBox.getSelected());
                         game.setScreen(new GameScreen(g, selection));
+                        dispose();
                         //errorLabel.setText("Doesn't work yet, sorry!");
                     }
                 } else {
-                    if (selection == DEFAULT_NEW_ISLAND) {
+                    if (Objects.equals(selection, DEFAULT_NEW_ISLAND)) {
                         // new island
                         String widthText = widthField.getText();
                         String depthText = depthField.getText();
@@ -115,7 +119,7 @@ public class MainScreen implements Screen {
                         try {
                             int worldWidth = Integer.parseInt(widthText);
                             int worldDepth = Integer.parseInt(depthText);
-                            // NOT DOONNNEEEEE PEE NEEDS TO BE UPDATED
+                            // NOT DOONNNEEEEE PEE NEEDS TO BE UPDATED // wtf does pee mean
                             if (islandSelectArray.contains(islandName, false) || citySelectArray.contains(islandName, false)) { // false means it uses .equals() instead of ==, which is necessary for strings
                                 throw new Exception("error: name has already been used");
                             } else if (worldWidth < DIMENSION_MIN || worldWidth > DIMENSION_MAX || worldDepth < DIMENSION_MIN || worldDepth > DIMENSION_MAX) {
@@ -203,8 +207,23 @@ public class MainScreen implements Screen {
         deleteCityButton.addListener(new ClickListener() {
             public void clicked(InputEvent event, float x, float y) {
 
+                // deleting island properties
+                String selected = citySelectionBox.getSelected();
+                Preferences prefToDelete = Gdx.app.getPreferences("CityWorlds");
+                int listSize = prefToDelete.getInteger(selected + "Width") * prefToDelete.getInteger(selected + "Depth");
+                for (int i = 0; i < listSize; i++ ){
+                    prefToDelete.remove(selected + "T" + Integer.toString(i));
+                    prefToDelete.remove(selected + "E" + Integer.toString(i));
+                    prefToDelete.remove(selected + "O" + Integer.toString(i));
+                }
+                prefToDelete.remove(selected + "Width");
+                prefToDelete.remove(selected + "Depth");
+                prefToDelete.flush();
+
+                // deleting from citylist
                 int deleteIndex = citySelectionBox.getSelectedIndex();
                 citySelectArray.removeIndex(deleteIndex);
+                cityListPrefs.remove(Integer.toString(deleteIndex));
                 saveLists();
                 cityListPrefs.remove(Integer.toString(citySelectArray.size + 1)); // have to remove the biggest integer because their indices should all be adjusted down, and the last would have a duplicate
                 cityListPrefs.flush();
@@ -229,9 +248,6 @@ public class MainScreen implements Screen {
                 prefToDelete.flush();
 
                 // deleting from island list
-
-                // Something is really wrong here and makes it not delete the name in IslandList
-
                 int deleteIndex = editIslandSelectionBox.getSelectedIndex();
                 editSelectArray.removeIndex(deleteIndex);
                 islandSelectArray.removeIndex(deleteIndex);
