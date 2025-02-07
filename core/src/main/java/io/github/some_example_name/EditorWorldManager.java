@@ -16,11 +16,7 @@ import com.badlogic.gdx.math.Vector4;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.UBJsonReader;
 
-import static io.github.some_example_name.tileType.OCEAN;
-import static io.github.some_example_name.tileType.RIVER;
-import static io.github.some_example_name.tileType.ELEVATION_DOWN;
-import static io.github.some_example_name.tileType.ELEVATION_UP;
-
+import static io.github.some_example_name.tileType.*;
 
 public class EditorWorldManager {
 
@@ -36,23 +32,43 @@ public class EditorWorldManager {
 
     private Array<ModelInstance> borderTileArray; // model instance because it has no true tile properties
     protected Array<TileInstance> tileArray;
-    // TILE_MODEL_NAMES.size = 39 at the moment
-    protected static final Array<String> TILE_MODEL_NAMES = new Array<>(new String[]{"dirt", "sand", "sandShortEdgeOceanBend", "sandLongEdgeOceanBend", "sandOceanStraight", "sandOceanBridge", "ocean", "oceanRiver", "oceanShortEdgeLandBend", "oceanLongEdgeLandBend", "oceanLandStraight", "oceanBridge", "oceanBridgeEdge", "riverEnd", "riverBend", "riverStraight", "riverElevation", "riverBridge", "land", "landBridge", "elevationShortEdgeBend", "elevationLongEdgeBend", "elevationStraight", "elevationRoadStraightDownhill", "elevationRoadStraightUphill", "roadEnd", "roadBend", "roadStraight", "roadTheta", "roadCross", "roadBridge", "roadBridgePitched", "roadParkingLot", "parkingLot", "parkingLotDecor", "parkingLotBend", "parkingLotStraight", "tunnel", "building"});
+    // TILE_MODEL_NAMES.size = 39 at the moment (40 with 2x1)
+    protected static final Array<String> TILE_MODEL_NAMES = new Array<>(new String[]{
+            "dirt", "sand", "sandShortEdgeOceanBend", "sandLongEdgeOceanBend", "sandOceanStraight", "sandOceanBridge",
+            "ocean", "oceanRiver", "oceanShortEdgeLandBend", "oceanLongEdgeLandBend", "oceanLandStraight", "oceanBridge", "oceanBridgeEdge",
+            "riverEnd", "riverBend", "riverStraight", "riverElevation", "riverBridge",
+            "land", "landBridge", "elevationShortEdgeBend", "elevationLongEdgeBend", "elevationStraight", "elevationRoadStraightDownhill", "elevationRoadStraightUphill",
+            "roadEnd", "roadBend", "roadStraight", "roadTheta", "roadCross", "roadBridge", "roadBridgePitched", "roadParkingLot",
+            "parkingLot", "parkingLotDecor", "parkingLotBend", "parkingLotStraight", "tunnel",
+            "shack", "farmhouse", "sHome", "trailerPark", "bHome", "homeWBack", "townhouse", "hotel", "apartment", "villa", "mansion", "firstRes",
+            "convStore", "fastFood", "clothing", "grocery", "furniture", "salon", "cafe", "toy", "restaurant", "jewelry", "stripmall", "technology",
+            "crops", "well", "livestock", "energy", "factory", "quarry", "waste", "emerg", "offices", "greenhouses", "jail", "hospital",
+            "church", "park", "commCent", "library", "tSquare", "cinema", "school", "natureT", "sportsC", "cityHall", "festivalG", "stadium",
+            "buildingOneByOne", "buildingTwoByOne", "buildingTwoByTwo", "buildingFourByTwo"
+    });
+
+    // The following 4 arrays should not be used by anything permanent. To refer to building size, use tiletype Enum
+    protected static final Array<Integer> ONE_BY_ONE_BUILDINGS = new Array<>(new Integer[]{38, 40, 42, 50, 51, 55, 59, 61, 62});
+    protected static final Array<Integer> TWO_BY_ONE_BUILDINGS = new Array<>(new Integer[]{39, 43, 44, 52, 56, 57, 63, 64, 65, 74, 75, 76, 77, 79});
+    protected static final Array<Integer> TWO_BY_TWO_BUILDINGS = new Array<>(new Integer[]{41, 45, 47, 48, 53, 54, 58, 66, 67, 68, 69, 71, 78, 80, 82, 83});
+    protected static final Array<Integer> FOUR_BY_TWO_BUILDINGS = new Array<>(new Integer[]{46, 49, 60, 70, 72, 73, 81, 84, 85});
     protected Array<Model> tileModels;
 
     // Selection Function Variables
-    private Material selectionMaterial;
-    private Material originalMaterial;
-    private boolean isPrevHoverElevation = false;
+    protected Material selectionMaterial;
+    protected Material originalMaterial;
+    protected Array<Material> originalMaterials;
+    protected Array<Integer> indexOfMaterials;
+    protected hoverType hoverType;
+    protected boolean isChangeValidFinal;
 
     protected tileType tileTypeSelection = tileType.LAND; // Starts with land
 
-    public EditorWorldManager() {
-    }
+    public EditorWorldManager() {} // necessary for GameWorldManager
 
     public EditorWorldManager(String n, int w, int d) { // new world
         islandPrefs = Gdx.app.getPreferences("islandWorlds");
-        init(n, w, d, new Array<tileType>(), new Array<Integer>(), null);
+        init(n, w, d, new Array<>(), new Array<>(), null);
     }
 
     public EditorWorldManager(String fileName) { // retrieved world, essentially loadIsland function
@@ -66,13 +82,13 @@ public class EditorWorldManager {
         int depth = islandPrefs.getInteger(fileName + "Depth");
         int size = width * depth;
 
-        Array<tileType> tArray = new Array<tileType>();
-        Array<Integer> eArray = new Array<Integer>();
+        Array<tileType> tArray = new Array<>();
+        Array<Integer> eArray = new Array<>();
         for (int i = 0; i < size; i++) {
             tArray.add(tileType.valueOf(islandPrefs.getString(fileName+ "T" + Integer.toString(i))));
             eArray.add(islandPrefs.getInteger(fileName + "E" + Integer.toString(i)));
         }
-        return new LoadedFileInfo(width, depth, tArray, eArray, new Array<tileType>());
+        return new LoadedFileInfo(width, depth, tArray, eArray, new Array<>());
     }
 
     public void saveIsland() {
@@ -101,25 +117,58 @@ public class EditorWorldManager {
         }
 
         // Retrieval of all tile models
+        // "buildingOneByOne", "buildingTwoByOne", "buildingTwoByTwo", "buildingFourByTwo"
 
         tileModels = new Array<>();
         UBJsonReader jsonReader = new UBJsonReader();
         G3dModelLoader modelLoader = new G3dModelLoader(jsonReader);
+        int indexCounter = 0;
+        Material colourLayer = new Material();
+        colourLayer.set(ColorAttribute.createDiffuse(new Color(0, 0, 0, 1)));
         for (String fileHandle : TILE_MODEL_NAMES) {
-            tileModels.add(modelLoader.loadModel(Gdx.files.getFileHandle("model/" + fileHandle + ".g3db", Files.FileType.Internal)));
+            if (ONE_BY_ONE_BUILDINGS.contains(indexCounter, false)) { // I tested and saw no difference between false & true
+                tileModels.add(modelLoader.loadModel(Gdx.files.getFileHandle("model/" + "buildingOneByOne" + ".g3db", Files.FileType.Internal)));
+            } else if (TWO_BY_ONE_BUILDINGS.contains(indexCounter, false)) { // I tested and saw no difference between false & true
+                tileModels.add(modelLoader.loadModel(Gdx.files.getFileHandle("model/" + "buildingTwoByOne" + ".g3db", Files.FileType.Internal)));
+            } else if (TWO_BY_TWO_BUILDINGS.contains(indexCounter, false)) { // I tested and saw no difference between false & true
+                tileModels.add(modelLoader.loadModel(Gdx.files.getFileHandle("model/" + "buildingTwoByTwo" + ".g3db", Files.FileType.Internal)));
+            } else if (FOUR_BY_TWO_BUILDINGS.contains(indexCounter, false)) { // I tested and saw no difference between false & true
+                tileModels.add(modelLoader.loadModel(Gdx.files.getFileHandle("model/" + "buildingFourByTwo" + ".g3db", Files.FileType.Internal)));
+            } else {
+                tileModels.add(modelLoader.loadModel(Gdx.files.getFileHandle("model/" + fileHandle + ".g3db", Files.FileType.Internal)));
+            }
+
             Material modelMaterial = tileModels.peek().materials.get(0);
-            modelMaterial.set(new TextureAttribute(TextureAttribute.Diffuse, new Texture("model/basetexture.jpg")));
-            // WORKED FIRST FUCKING TRY LETS GO wow that was very accomplishing but took like days to figure out
-            // btw I just randomly started guessing how to set textures I am very impressed with my instincts
+            if (indexCounter >= 38 && indexCounter <= 49 && indexCounter != 38 && indexCounter != 39 && indexCounter != 45 && indexCounter != 46) { // shack, farmhouse, hotel, apartment (38, 39, 45, 46) will represent normal building for now
+                modelMaterial.set(ColorAttribute.createDiffuse(Color.CYAN));
+
+            } else if (indexCounter >= 50 && indexCounter <= 61) {
+                modelMaterial.set(ColorAttribute.createDiffuse(Color.FOREST));
+
+            } else if (indexCounter >= 62 && indexCounter <= 73) {
+                modelMaterial.set(ColorAttribute.createDiffuse(Color.MAROON));
+
+            } else if (indexCounter >= 74 && indexCounter <= 85) {
+                modelMaterial.set(ColorAttribute.createDiffuse(Color.PURPLE));
+
+            } else {
+                modelMaterial.set(new TextureAttribute(TextureAttribute.Diffuse, new Texture("model/basetexture.jpg")));
+                // WORKED FIRST FUCKING TRY LETS GO wow that was very accomplishing but took like days to figure out
+                // btw I just randomly started guessing how to set textures I am very impressed with my instincts
+            }
             modelMaterial.remove(ColorAttribute.Emissive); // The models were glowing white, so I added this line
 
+            indexCounter++;
         }
 
         // Selection Material Set
 
         selectionMaterial = new Material();
-        selectionMaterial.set(ColorAttribute.createDiffuse(Color.GOLD));
         originalMaterial = new Material();
+        originalMaterials = new Array<>();
+        indexOfMaterials = new Array<>();
+        isChangeValidFinal = false;
+        hoverType = io.github.some_example_name.hoverType.ONE_BY_ONE;
 
         // Tile Array Initiation (World generation)
 
@@ -127,7 +176,7 @@ public class EditorWorldManager {
 
         // Border Array Initiation
 
-        borderTileArray = new Array<ModelInstance>();
+        borderTileArray = new Array<>();
         for (int depth = -1; depth <= worldTileDepth; depth++) {
             makeBorderTile(-1, depth);
             makeBorderTile(worldTileWidth, depth);
@@ -136,9 +185,26 @@ public class EditorWorldManager {
             makeBorderTile(width, -1);
             makeBorderTile(width, worldTileDepth);
         }
-
-
     }
+
+    // --- TILE PLACEMENT CONDITION CHECKERS -------
+
+    protected boolean isElevationUpValid(TileProperties currTile) {
+        return currTile.elevation < ELEVATION_MAX && isElevationValid(currTile); // changing the colour of the edges makes me nervous because I'm not sure if it will set the "originalMaterial" to the colour diffused material if new hover becomes one of these edges
+    }
+    protected boolean isElevationDownValid(TileProperties currTile) {
+        return currTile.elevation > 0 && isElevationValid(currTile);
+    }
+
+    protected boolean isElevationValid(TileProperties currTile) {
+        return currTile.nTileType != null && currTile.sTileType != null && currTile.eTileType != null && currTile.wTileType != null;
+    }
+
+    protected boolean isAnyChangeValid(TileProperties currTile) { // Must be overrideable for gameWorldManager
+        return true;
+    }
+
+    // ---- PLACEMENT & HOVER FUNCTIONS ----------
 
     public void selectFunction(int newSelection) {
 
@@ -149,65 +215,63 @@ public class EditorWorldManager {
 
     public void hoverFunction(int prevHover, int newHover) {
         if (newHover >= 0) {
-            hoverHighlightEditor(prevHover, newHover, tileTypeSelection);
+            removePrevHighlight(prevHover);
+            hoverHighlightEditor(newHover, tileTypeSelection);
         }
     }
 
-    public void hoverHighlightEditor(int prevHover, int newHover, tileType tileTypeSelection) {
+    protected void hoverHighlightEditor(int newHover, tileType tileTypeSelection) {
         TileProperties currTile = tileArray.get(newHover).tileProperties;
-        if (tileTypeSelection == ELEVATION_UP) {
-            hoverElevationUpHelper(prevHover, newHover, currTile);
-        } else if (tileTypeSelection == ELEVATION_DOWN) {
-            hoverElevationDownHelper(prevHover, newHover, currTile);
-        } else if (tileType.tileOccupationType.contains(tileTypeSelection)) { // Occupation button
-            if (currTile.tileOccupationType != tileTypeSelection) {
-                highlight(prevHover, newHover, Color.GREEN);
+        if (isAnyChangeValid(currTile)) {
+            if (tileTypeSelection == ELEVATION_UP) {
+                if (isElevationUpValid(currTile)) {
+                    highlight(newHover, Color.GREEN);
+                    isChangeValidFinal = true;
+                } else {
+                    highlight(newHover, Color.ORANGE);
+                    isChangeValidFinal = false;
+                }
+            } else if (tileTypeSelection == ELEVATION_DOWN) {
+                if (isElevationDownValid(currTile)) {
+                    highlight(newHover, Color.GREEN);
+                    isChangeValidFinal = true;
+                } else {
+                    highlight(newHover, Color.ORANGE);
+                    isChangeValidFinal = false;
+                }
             } else {
-                highlight(prevHover, newHover, Color.ORANGE);
+                if (currTile.tileType != tileTypeSelection) {
+                    highlight(newHover, Color.GREEN);
+                    isChangeValidFinal = true;
+                } else {
+                    highlight(newHover, Color.ORANGE);
+                    isChangeValidFinal = false;
+                }
             }
         } else {
-            if (currTile.tileType != tileTypeSelection) {
-                highlight(prevHover, newHover, Color.GREEN);
-            } else {
-                highlight(prevHover, newHover, Color.ORANGE);
-            }
+            highlight(newHover, Color.ORANGE);
+            isChangeValidFinal = false;
         }
     }
 
-    private void hoverElevationUpHelper(int prevHover, int newHover, TileProperties currTile) {
-        if (currTile.elevation < ELEVATION_MAX) {
-            highlight(prevHover, newHover, Color.GREEN);
-        } else {
-            highlight(prevHover, newHover, Color.ORANGE);
-        }
-        /*if (currTile.elevation > currTile.neighbourElevation.x) {
-            Material mat = tileArray.get(newHover - worldTileWidth).materials.get(0); // north is gotten
-            mat.clear();
-            mat.set(ColorAttribute.createDiffuse(Color.GREEN));
-        }*/ // chaning the colour of the edges makes me nervous because I'm not sure if it will set the "originalMaterial" to the colour diffused material if new hover becomes one of these edges
-
-    }
-    private void hoverElevationDownHelper(int prevHover, int newHover, TileProperties currTile) {
-        if (currTile.elevation > 0) {
-            highlight(prevHover, newHover, Color.GREEN);
-        } else {
-            highlight(prevHover, newHover, Color.ORANGE);
-        }
-    }
-
-    protected void highlight(int prevHover, int newHover, Color color) {
+    protected void removePrevHighlight(int prevHover) {
         if (prevHover >= 0) {
-            Material mat = tileArray.get(prevHover).materials.get(0);
-            mat.clear();
-            mat.set(originalMaterial);
-            if (isPrevHoverElevation) {
-                // ADD IMPLMEMENTATION
+            for (int i = 0; i < originalMaterials.size; i++) {
+                Material originalMaterial = originalMaterials.get(i);
+                Material mat = tileArray.get(indexOfMaterials.get(i)).materials.get(0);
+                mat.clear();
+                mat.set(originalMaterial);
             }
+            originalMaterials.clear();
+            indexOfMaterials.clear();
         }
+    }
+
+    protected void highlight(int currIndex, Color color) {
         selectionMaterial.set(ColorAttribute.createDiffuse(color));
-        Material mat = tileArray.get(newHover).materials.get(0);
-        originalMaterial.clear();
-        originalMaterial.set(mat);
+        Material mat = tileArray.get(currIndex).materials.get(0);
+        indexOfMaterials.add(currIndex);
+        originalMaterials.add(new Material(mat));
         mat.clear();
         mat.set(selectionMaterial);
     }
@@ -225,15 +289,21 @@ public class EditorWorldManager {
 
     protected void changeTileTypeEditor(int newSelection, tileType tileTypeSelection) {  // this should go in EditorManager Class
         // This is for changing the tileType
-        if (tileTypeSelection == ELEVATION_UP) {
-            updateElevation(newSelection, 1);
-            System.out.println("index: " + newSelection + ", it's elevation: " + tileArray.get(newSelection).tileProperties.elevation);
-        } else if (tileTypeSelection == ELEVATION_DOWN) {
-            updateElevation(newSelection, -1);
-        } else if (tileTypeSelection == OCEAN) {
-            updateTileTypeOcean(newSelection);
-        } else {
-            updateTileTypeNonOcean(newSelection, tileTypeSelection);
+        TileProperties currTile = tileArray.get(newSelection).tileProperties;
+        if (isChangeValidFinal) {
+            if (tileTypeSelection == ELEVATION_UP) {
+                if (isElevationUpValid(currTile)) {
+                    updateElevation(newSelection, 1);
+                }
+            } else if (tileTypeSelection == ELEVATION_DOWN) {
+                if (isElevationDownValid(currTile)) {
+                    updateElevation(newSelection, -1);
+                }
+            } else if (tileTypeSelection == OCEAN) {
+                updateTileTypeOcean(newSelection);
+            } else {
+                updateTileTypeNonOcean(newSelection, tileTypeSelection);
+            }
         }
     }
 
@@ -343,7 +413,7 @@ public class EditorWorldManager {
     // occupation types handled in GameWorldManager only - needed param here for inheritance
     public void generateAllTileProperties(Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes) {
 
-        tileArray = new Array<TileInstance>();
+        tileArray = new Array<>();
 
         // Start by setting all properties
         for (int depth = 0; depth < worldTileDepth; depth++) {  // FOR REFERENCE (0 = north west, worldTileWidth = north east)
@@ -357,15 +427,13 @@ public class EditorWorldManager {
 
         // compass block (orange = NW)              // REMOVE THIS ______________________________________________
         Material mat = tileArray.get(0).materials.get(0);
-        originalMaterial.clear();
-        originalMaterial.set(mat);
         mat.clear();
-        mat.set(selectionMaterial);
+        mat.set(ColorAttribute.createDiffuse(Color.GOLD));
     }
 
     public void updateTileTypeNonOcean(int selectedIndex, tileType t) { // updates tile type & direct neighbours
         TileProperties selectedProperties = tileArray.get(selectedIndex).tileProperties;
-        if (selectedProperties.tileType == OCEAN) {
+        if (selectedProperties.tileType == OCEAN) { // Checking if was ocean to make sure corners reset
             updateOceanCorners(selectedIndex, 0);
         }
         selectedProperties.tileType = t;
@@ -436,66 +504,54 @@ public class EditorWorldManager {
 
     public void updateElevation(int selectedIndex, int elevationIncrement) { // updates elevation & all 8 neighbours
         TileProperties selectedProperties = tileArray.get(selectedIndex).tileProperties;
-        if (elevationIncrement == -1 && selectedProperties.elevation <= 0) {
-            return; // add throw exception when error dialogues are added
-        }
-        if (elevationIncrement == 1 && selectedProperties.elevation >= ELEVATION_MAX) {
-            return; // add throw exception when error dialogues are added
-        }
-        if (selectedProperties.nTileType != null && selectedProperties.sTileType != null && selectedProperties.eTileType != null && selectedProperties.wTileType != null) {
-            // add throw exception in else case aswell when error dialogues are added
-            selectedProperties.elevation += elevationIncrement;
-            setTile(selectedIndex, selectedProperties);
+        selectedProperties.elevation += elevationIncrement;
+        setTile(selectedIndex, selectedProperties);
 
-            // Direct Neighbours update
-            int northIndex = selectedIndex - worldTileWidth;
-            TileProperties northProperties = tileArray.get(northIndex).tileProperties;
-            northProperties.neighbourElevation.y += elevationIncrement; // in relation to the north tile, the south tile is changing
-            setTile(northIndex, northProperties);
+        // Direct Neighbours update
+        int northIndex = selectedIndex - worldTileWidth;
+        TileProperties northProperties = tileArray.get(northIndex).tileProperties;
+        northProperties.neighbourElevation.y += elevationIncrement; // in relation to the north tile, the south tile is changing
+        setTile(northIndex, northProperties);
 
-            int southIndex = selectedIndex + worldTileWidth;
-            TileProperties southProperties = tileArray.get(southIndex).tileProperties;
-            southProperties.neighbourElevation.x += elevationIncrement;
-            setTile(southIndex, southProperties);
+        int southIndex = selectedIndex + worldTileWidth;
+        TileProperties southProperties = tileArray.get(southIndex).tileProperties;
+        southProperties.neighbourElevation.x += elevationIncrement;
+        setTile(southIndex, southProperties);
 
-            int eastIndex = selectedIndex + 1;
-            TileProperties eastProperties = tileArray.get(eastIndex).tileProperties;
-            eastProperties.neighbourElevation.w += elevationIncrement;
-            setTile(eastIndex, eastProperties);
+        int eastIndex = selectedIndex + 1;
+        TileProperties eastProperties = tileArray.get(eastIndex).tileProperties;
+        eastProperties.neighbourElevation.w += elevationIncrement;
+        setTile(eastIndex, eastProperties);
 
-            int westIndex = selectedIndex - 1;
-            TileProperties westProperties = tileArray.get(westIndex).tileProperties;
-            westProperties.neighbourElevation.z += elevationIncrement;
-            setTile(westIndex, westProperties);
+        int westIndex = selectedIndex - 1;
+        TileProperties westProperties = tileArray.get(westIndex).tileProperties;
+        westProperties.neighbourElevation.z += elevationIncrement;
+        setTile(westIndex, westProperties);
 
-            // cornerNeighbour update
-            int northEastIndex = northIndex + 1;
-            TileProperties northEastProperties = tileArray.get(northEastIndex).tileProperties;
-            northEastProperties.cornerNeighbourElevation.w += elevationIncrement;  // in relation to the north-east tile, the south-west tile is changing
-            setTile(northEastIndex, northEastProperties);
+        // cornerNeighbour update
+        int northEastIndex = northIndex + 1;
+        TileProperties northEastProperties = tileArray.get(northEastIndex).tileProperties;
+        northEastProperties.cornerNeighbourElevation.w += elevationIncrement;  // in relation to the north-east tile, the south-west tile is changing
+        setTile(northEastIndex, northEastProperties);
 
-            int northWestIndex = northIndex - 1;
-            TileProperties northWestProperties = tileArray.get(northWestIndex).tileProperties;
-            northWestProperties.cornerNeighbourElevation.z += elevationIncrement;
-            setTile(northWestIndex, northWestProperties);
+        int northWestIndex = northIndex - 1;
+        TileProperties northWestProperties = tileArray.get(northWestIndex).tileProperties;
+        northWestProperties.cornerNeighbourElevation.z += elevationIncrement;
+        setTile(northWestIndex, northWestProperties);
 
-            int southEastIndex = southIndex + 1;
-            TileProperties southEastProperties = tileArray.get(southEastIndex).tileProperties;
-            southEastProperties.cornerNeighbourElevation.y += elevationIncrement;  // in relation to the north-east tile, the south-west tile is changing
-            setTile(southEastIndex, southEastProperties);
+        int southEastIndex = southIndex + 1;
+        TileProperties southEastProperties = tileArray.get(southEastIndex).tileProperties;
+        southEastProperties.cornerNeighbourElevation.y += elevationIncrement;  // in relation to the north-east tile, the south-west tile is changing
+        setTile(southEastIndex, southEastProperties);
 
-            int southWestIndex = southIndex - 1;
-            TileProperties southWestProperties = tileArray.get(southWestIndex).tileProperties;
-            southWestProperties.cornerNeighbourElevation.x += elevationIncrement;
-            setTile(southWestIndex, southWestProperties);
-
-        }
+        int southWestIndex = southIndex - 1;
+        TileProperties southWestProperties = tileArray.get(southWestIndex).tileProperties;
+        southWestProperties.cornerNeighbourElevation.x += elevationIncrement;
+        setTile(southWestIndex, southWestProperties);
     }
 
     public void setTile(int selectedIndex, TileProperties selectedProperties) {
         ModelInfo currentModelInfo = tileSetAlgorithm(selectedProperties);
-        //System.out.println("Index: " + selectedIndex);
-        //System.out.println("Model info: " + currentModelInfo.modelIndex + ", " + currentModelInfo.modelRotation);
         Model currentModel = tileModels.get(currentModelInfo.modelIndex);
         TileInstance currentInstance = new TileInstance(currentModel, currentModelInfo, selectedProperties);
         tileArray.set(selectedIndex, currentInstance);

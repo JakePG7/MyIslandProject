@@ -1,16 +1,18 @@
 package io.github.some_example_name;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Vector4;
 import com.badlogic.gdx.utils.Array;
 
 public class GameWorldManager extends EditorWorldManager {
 
-    int testAllTilesIndex = 0;
     ModelInfo checkModel = null;
+    protected Array<String> TILE_MODEL_NAMES_UPPERCASE = new Array<>();
 
     public GameWorldManager(String fileName, String newCityName) {
         super();
+        setNamesToUppercase();
         islandPrefs = Gdx.app.getPreferences("islandWorlds"); // FOR LOADING NEW FILE ONLY
         LoadedFileInfo loadedFileInfo = loadIsland(fileName);
 
@@ -20,20 +22,27 @@ public class GameWorldManager extends EditorWorldManager {
 
     public GameWorldManager(String fileName) {
         super();
+        setNamesToUppercase();
         islandPrefs = Gdx.app.getPreferences("CityWorlds");
         LoadedFileInfo loadedFileInfo = loadIsland(fileName);
         init(fileName, loadedFileInfo.width, loadedFileInfo.depth, loadedFileInfo.tArray, loadedFileInfo.eArray, loadedFileInfo.oArray);
     }
 
+    private void setNamesToUppercase() {
+        for (int i = 0; i < TILE_MODEL_NAMES.size; i++) {
+            TILE_MODEL_NAMES_UPPERCASE.add(TILE_MODEL_NAMES.get(i).toUpperCase());
+        }
+    }
+
     @Override
     public LoadedFileInfo loadIsland(String fileName) {
         LoadedFileInfo currFileInfo = super.loadIsland(fileName);
-        Array<tileType> oArray = new Array<tileType>();
+        Array<tileType> oArray = new Array<>();
         // making sure it actually needs occupation type (new city reads from islandWorlds)
         if (islandPrefs.equals(Gdx.app.getPreferences("CityWorlds"))) {
             int size = currFileInfo.width * currFileInfo.depth;
             for (int i = 0; i < size; i++) {
-                oArray.add(tileType.valueOf(islandPrefs.getString(fileName+ "O" + Integer.toString(i))));
+                oArray.add(tileType.valueOf(islandPrefs.getString(fileName + "O" + Integer.toString(i))));
             }
         }
         return new LoadedFileInfo(currFileInfo.width, currFileInfo.depth, currFileInfo.tArray, currFileInfo.eArray, oArray);
@@ -49,6 +58,75 @@ public class GameWorldManager extends EditorWorldManager {
         }
         islandPrefs.flush();
     }
+
+    @Override
+    protected boolean isAnyChangeValid(TileProperties currTile) {
+        return currTile.tileOccupationType == tileType.UNOCCUPIED;
+    }
+
+    protected boolean isBuildValid(TileProperties currTile) {
+        return currTile.tileType == tileType.LAND || currTile.tileType == tileType.SAND || tileTypeSelection == tileType.BRIDGE;
+    }
+
+    protected boolean isBulldozerValid(TileProperties currTile) {
+        return currTile.tileOccupationType != tileType.UNOCCUPIED;
+    }
+
+
+    protected Array<Integer> getOneByOneIndexArray(int currIndex) {
+        return new Array<>(new Integer[]{currIndex});
+    }
+
+    protected Array<Integer> getTwoByOneIndexArray(int currIndex) {
+        return new Array<>(new Integer[]{currIndex, currIndex + 1});
+    }
+
+    protected Array<Integer> getTwoByTwoIndexArray(int currIndex) {
+        return new Array<>(new Integer[]{currIndex, currIndex + 1, currIndex + worldTileWidth, currIndex + worldTileWidth + 1});
+    }
+
+    protected Array<Integer> getFourByTwoIndexArray(int currIndex) {
+        return new Array<>(new Integer[]{currIndex, currIndex + 1, currIndex + 2, currIndex + 3, currIndex + worldTileWidth, currIndex + worldTileWidth + 1, currIndex + worldTileWidth + 2, currIndex + worldTileWidth + 3});
+    }
+
+    @Override
+    protected void hoverHighlightEditor(int newHover, tileType tileTypeSelection) {
+        TileProperties headTileProperties = tileArray.get(newHover).tileProperties;
+        if (tileTypeSelection == tileType.UNOCCUPIED) {
+            if (isBulldozerValid(headTileProperties)) {
+                highlight(newHover, Color.GREEN);
+                isChangeValidFinal = true;
+            } else {
+                highlight(newHover, Color.ORANGE);
+                isChangeValidFinal = false;
+            }
+        } else if (tileType.tileOccupationType.contains(tileTypeSelection)) { // Building Button Selected
+            Array<Integer> indicesToHighlight;
+            if (tileType.twoByOneBuildingType.contains(tileTypeSelection)) {
+                indicesToHighlight = getTwoByOneIndexArray(newHover);
+            } else if (tileType.twoByTwoBuildingType.contains(tileTypeSelection)) {
+                indicesToHighlight = getTwoByTwoIndexArray(newHover);
+            } else if (tileType.fourByTwoBuildingType.contains(tileTypeSelection)) {
+                indicesToHighlight = getFourByTwoIndexArray(newHover);
+            } else {
+                indicesToHighlight = getOneByOneIndexArray(newHover);
+            }
+            int changeIsValidCount = 0;
+            for (int indexToHighlight : indicesToHighlight) {
+                TileProperties indexedTileProperties = tileArray.get(indexToHighlight).tileProperties;
+                if (isAnyChangeValid(indexedTileProperties) && isBuildValid(indexedTileProperties)) {
+                    highlight(indexToHighlight, Color.GREEN);
+                    changeIsValidCount++;
+                } else {
+                    highlight(indexToHighlight, Color.ORANGE);
+                }
+            }
+            isChangeValidFinal = changeIsValidCount >= indicesToHighlight.size;
+        } else {
+            super.hoverHighlightEditor(newHover, tileTypeSelection);
+        }
+    }
+
 
     @Override
     protected TileProperties generateHelperPropertiesOnly(int width, int depth, Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes) {
@@ -123,23 +201,46 @@ public class GameWorldManager extends EditorWorldManager {
 
     @Override
     protected void changeTileTypeEditor(int newSelection, tileType tileTypeSelection) {
-        if (tileType.tileOccupationType.contains(tileTypeSelection)) {
-            updateTileTypeRoad(newSelection, tileTypeSelection);
-        } else {
-            super.changeTileTypeEditor(newSelection, tileTypeSelection);
+        if (isChangeValidFinal) {
+            if (tileTypeSelection == tileType.UNOCCUPIED) {
+                Array<Integer> indicesToChange;
+                        tileType headTileOccupationType = tileArray.get(newSelection).tileProperties.tileOccupationType;
+                 if (tileType.twoByOneBuildingType.contains(headTileOccupationType)) {
+                    indicesToChange = getTwoByOneIndexArray(newSelection);
+                } else if (tileType.twoByTwoBuildingType.contains(headTileOccupationType)) {
+                    indicesToChange = getTwoByTwoIndexArray(newSelection);
+                } else if (tileType.fourByTwoBuildingType.contains(headTileOccupationType)){
+                    indicesToChange = getFourByTwoIndexArray(newSelection);
+                } else {
+                     indicesToChange = getOneByOneIndexArray(newSelection);
+                }
+                for (int indexToChange : indicesToChange) {
+                    updateTileTypeRoad(indexToChange, tileTypeSelection);
+                }
+
+            } else if (tileType.tileOccupationType.contains(tileTypeSelection)) {
+                updateTileTypeRoad(newSelection, tileTypeSelection);
+                for (int i = 1; i < indexOfMaterials.size; i++) {
+                    updateTileTypeRoad(indexOfMaterials.get(i), tileType.EXTENSION);
+                }
+            } else {
+                super.changeTileTypeEditor(newSelection, tileTypeSelection);
+            }
         }
     }
 
     @Override
     public ModelInfo tileSetAlgorithm(TileProperties properties) {
+        if (tileType.tileBuildingType.contains(properties.tileOccupationType)) {
+            int modelIndex = TILE_MODEL_NAMES_UPPERCASE.indexOf(properties.tileOccupationType.toString(), false);
+            return new ModelInfo(modelIndex, 0); // oh shit this is a realy bad time to stop, make sure to add when building is placed
+        }
         switch (properties.tileOccupationType) {
-            case BUILDING: // 38
-                return new ModelInfo(38, 0);
+            case EXTENSION:
+                return new ModelInfo(0, 0);
             case TUNNEL: // 37
                 checkModel = rotationElevationByPriorityEdgeNSEW(37, 1, 3, 0, 2, properties.elevation, properties.neighbourElevation);
-                if (checkModel != null) {
-                    return checkModel;
-                }
+                if (checkModel != null) {return checkModel;}
                 return new ModelInfo(37, 0);
 
             case BRIDGE: // 5, 11, 12, 17, 19, 23, 30, 31,
@@ -167,7 +268,7 @@ public class GameWorldManager extends EditorWorldManager {
                 checkModel = rotationElevationByPriorityEdgeNSEW(23, 1, 3, 0, 2, properties.elevation, properties.neighbourElevation);
                 if (checkModel != null) { return checkModel; }
 
-                // ask if ocean beside (12)
+                // ask if ocean beside (12)  // BUG when ocean on 2 sides will prioritize north no matter what
                 checkModel = rotationByPriorityEdgeNSEW(12, 3, 1, 2, 0, tileType.OCEAN, properties.nTileType, properties.sTileType, properties.eTileType, properties.wTileType);
                 if (checkModel != null) { return checkModel; }
 
