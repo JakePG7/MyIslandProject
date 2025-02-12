@@ -6,14 +6,16 @@ import com.badlogic.gdx.utils.Array;
 public class LoadedFileInfo {
     int width, depth;
     Array<tileType> tArray, oArray;
-    Array<Integer> eArray;
+    Array<Integer> eArray, hArray, rArray;
 
-    public LoadedFileInfo(int width, int height, Array<tileType> tArray, Array<Integer> eArray, Array<tileType> oArray) {
+    public LoadedFileInfo(int width, int height, Array<tileType> tArray, Array<Integer> eArray, Array<tileType> oArray, Array<Integer> hArray, Array<Integer> rArray) {
         this.width = width;
         this.depth = height;
         this.tArray = tArray;
         this.eArray = eArray;
         this.oArray = oArray;
+        this.hArray = hArray;
+        this.rArray = rArray;
     }
 }
 

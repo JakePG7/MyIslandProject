@@ -59,7 +59,6 @@ public class EditorWorldManager {
     protected Material originalMaterial;
     protected Array<Material> originalMaterials;
     protected Array<Integer> indexOfMaterials;
-    protected hoverType hoverType;
     protected boolean isChangeValidFinal;
 
     protected tileType tileTypeSelection = tileType.LAND; // Starts with land
@@ -68,13 +67,13 @@ public class EditorWorldManager {
 
     public EditorWorldManager(String n, int w, int d) { // new world
         islandPrefs = Gdx.app.getPreferences("islandWorlds");
-        init(n, w, d, new Array<>(), new Array<>(), null);
+        init(n, w, d, new Array<>(), new Array<>(), null, null, null);
     }
 
     public EditorWorldManager(String fileName) { // retrieved world, essentially loadIsland function
         islandPrefs = Gdx.app.getPreferences("islandWorlds");
         LoadedFileInfo loadedFileInfo = loadIsland(fileName);
-        init(fileName, loadedFileInfo.width, loadedFileInfo.depth, loadedFileInfo.tArray, loadedFileInfo.eArray, null);
+        init(fileName, loadedFileInfo.width, loadedFileInfo.depth, loadedFileInfo.tArray, loadedFileInfo.eArray, null, null, null);
     }
 
     public LoadedFileInfo loadIsland(String fileName) {
@@ -86,23 +85,26 @@ public class EditorWorldManager {
         Array<Integer> eArray = new Array<>();
         for (int i = 0; i < size; i++) {
             tArray.add(tileType.valueOf(islandPrefs.getString(fileName+ "T" + Integer.toString(i))));
-            eArray.add(islandPrefs.getInteger(fileName + "E" + Integer.toString(i)));
+            eArray.add(islandPrefs.getInteger(fileName + "E" + Integer.toString(i), 0));
         }
-        return new LoadedFileInfo(width, depth, tArray, eArray, new Array<>());
+        return new LoadedFileInfo(width, depth, tArray, eArray, new Array<>(), new Array<>(), new Array<>());
     }
 
     public void saveIsland() {
+        // islandPrefs.clear(); // This deleted SaveyCity :( RIP
         islandPrefs.putInteger(worldName + "Width", worldTileWidth);
         islandPrefs.putInteger(worldName + "Depth", worldTileDepth);
         for (int i = 0; i < tileArray.size; i++) {
             TileProperties props = tileArray.get(i).tileProperties;
             islandPrefs.putString(worldName + "T" + Integer.toString(i), props.tileType.toString());
-            islandPrefs.putInteger(worldName + "E" + Integer.toString(i), props.elevation);
+            if (props.elevation != 0) {
+                islandPrefs.putInteger(worldName + "E" + Integer.toString(i), props.elevation);
+            }
         }
         islandPrefs.flush();
     }
 
-    protected void init(String n, int w, int d, Array<tileType> typeArray, Array<Integer> elevArray, Array<tileType> occTypeArray)  {
+    protected void init(String n, int w, int d, Array<tileType> typeArray, Array<Integer> elevArray, Array<tileType> occTypeArray, Array<Integer> occHeadsArray, Array<Integer> occRotationsArray)  {
         worldName = n;
         worldTileWidth = w;
         worldTileDepth = d;
@@ -168,11 +170,10 @@ public class EditorWorldManager {
         originalMaterials = new Array<>();
         indexOfMaterials = new Array<>();
         isChangeValidFinal = false;
-        hoverType = io.github.some_example_name.hoverType.ONE_BY_ONE;
 
         // Tile Array Initiation (World generation)
 
-        generateAllTileProperties(typeArray, elevArray, occTypeArray);
+        generateAllTileProperties(typeArray, elevArray, occTypeArray, occHeadsArray, occRotationsArray);
 
         // Border Array Initiation
 
@@ -313,7 +314,7 @@ public class EditorWorldManager {
         }
     }
 
-    private void setTileLocation(ModelInstance tile, int width, int depth, int elevation) {
+    protected void setTileLocation(ModelInstance tile, int width, int depth, int elevation) {
         tile.transform.setToTranslation(width * TILE_WIDTH, elevation * ELEVATION_HEIGHT, depth * TILE_WIDTH);
     }
 
@@ -336,7 +337,7 @@ public class EditorWorldManager {
 
     // _______________ WORLD UPDATING FUNCTIONS
 
-    protected TileProperties generateHelperPropertiesOnly(int width, int depth, Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes) {
+    protected TileProperties generateHelperPropertiesOnly(int width, int depth, Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes, Array<Integer> tileOccupationHeads, Array<Integer> occupationRotations) {
         // current index properties
         int currentIndex = depth * worldTileWidth + width; // equiv to currentIndex++ iteration
         tileType thisTileType = tileTypes.get(currentIndex);
@@ -406,19 +407,19 @@ public class EditorWorldManager {
             thisCornerNeighbourOcean.w = 1;
         }
 
-        return new TileProperties(thisTileType, tileType.UNOCCUPIED, thisElevation, thisNT, thisST, thisET, thisWT, thisCornerNeighbourOcean, thisNeighbourElevation, thisNeighbourCornerElevation);
+        return new TileProperties(thisTileType, tileType.UNOCCUPIED, -1, 0, thisElevation, thisNT, thisST, thisET, thisWT, thisCornerNeighbourOcean, thisNeighbourElevation, thisNeighbourCornerElevation);
     }
 
     // produces entirely new tile Array based on saved information
     // occupation types handled in GameWorldManager only - needed param here for inheritance
-    public void generateAllTileProperties(Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes) {
+    public void generateAllTileProperties(Array<tileType> tileTypes, Array<Integer> elevations, Array<tileType> tileOccupationTypes, Array<Integer> tileOccupationHeads, Array<Integer> occupationRotations) {
 
         tileArray = new Array<>();
 
         // Start by setting all properties
         for (int depth = 0; depth < worldTileDepth; depth++) {  // FOR REFERENCE (0 = north west, worldTileWidth = north east)
             for (int width = 0; width < worldTileWidth; width++) {
-                TileProperties currentProperties = generateHelperPropertiesOnly(width, depth, tileTypes, elevations, tileOccupationTypes);
+                TileProperties currentProperties = generateHelperPropertiesOnly(width, depth, tileTypes, elevations, tileOccupationTypes, tileOccupationHeads, occupationRotations);
 
                 tileArray.add(null); // to be compatible with setTile
                 setTile(tileArray.size - 1, currentProperties);
@@ -871,6 +872,10 @@ public class EditorWorldManager {
         return worldTileDepth * TILE_WIDTH;
     }
 
-
-
+    public void increaseRotationSelection() { // Literally hate that this has to be here
+        return;
+    }
+    public void resetRotationSelection() {
+        return;
+    }
 }

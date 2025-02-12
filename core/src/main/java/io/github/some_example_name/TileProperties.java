@@ -8,6 +8,8 @@ public class TileProperties {
     public tileType tileType;
     // REQUIRES tileType.tileOccupationType.contains(tileOccupationType);
     public tileType tileOccupationType;
+    public int tileOccupationHead;
+    public int occupationRotation;
     public int elevation;
     public tileType nTileType;
     public tileType sTileType;
@@ -17,10 +19,13 @@ public class TileProperties {
     public tileType sTileOccupationType;
     public tileType eTileOccupationType;
     public tileType wTileOccupationType;
+    public int nTileOccupationHead;
+    public int sTileOccupationHead;
+    public int eTileOccupationHead;
+    public int wTileOccupationHead;
     public Vector4 isCornerNeighbourOcean; // treat like boolean vector
     public Vector4 neighbourElevation;
     public Vector4 cornerNeighbourElevation;
-    // public int occupationPrincipalTile = -1;
 
     /*
     private int longevity;
@@ -30,9 +35,11 @@ public class TileProperties {
     private int commercialBoost;
     */
 
-    public TileProperties(tileType t, tileType o, int e, tileType nT, tileType sT, tileType eT, tileType wT, Vector4 cornerNeighbourO, Vector4 neighbourE, Vector4 cornerNeighbourE) {
+    public TileProperties(tileType t, tileType o, int h, int r, int e, tileType nT, tileType sT, tileType eT, tileType wT, Vector4 cornerNeighbourO, Vector4 neighbourE, Vector4 cornerNeighbourE) {
         tileType = t;
         tileOccupationType = o;
+        tileOccupationHead = h;
+        occupationRotation = r;
         elevation = e;
         nTileType = nT;
         sTileType = sT;

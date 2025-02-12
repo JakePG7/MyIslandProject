@@ -1,6 +1,7 @@
 package io.github.some_example_name;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -142,6 +143,7 @@ public class GameScreen extends EditorScreen {
     private void tileChangerButtonHelper(Button button, tileType t) {
         button.addListener(new InputListener() {
             public boolean touchDown (InputEvent event, float x, float y, int pointer, int button) {
+                worldManager.resetRotationSelection();
                 return terrainButtonHelper(t);
             }
         });
@@ -355,6 +357,14 @@ public class GameScreen extends EditorScreen {
         }
         scrollPaneTable.removeActorAt(1, false);
         scrollPaneTable.add(group);
+        return false;
+    }
+
+    @Override
+    public boolean keyDown(int keycode) {
+        if (keycode == Input.Keys.R) {
+            worldManager.increaseRotationSelection();
+        }
         return false;
     }
 }
